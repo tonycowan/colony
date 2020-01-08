@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Canvas</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas class="myCanvas">
+        <p>Add suitable fallback here.</p>
+    </canvas>
+
+    <script>
+        function degToRad(degrees) {
+            return degrees * Math.PI / 180;
+        };
+        const canvas = document.querySelector('.myCanvas');
+        const width = canvas.width = window.innerWidth;
+        const height = canvas.height = window.innerHeight;
+        const ctx = canvas.getContext('2d');
+        const backgroundColor = 'rgb(0, 0, 0)';
+
+        ctx.translate(width / 2, height / 2);
+
+        ctx.fillStyle = backgroundColor;
+        ctx.fillRect(-(width / 2), -(height / 2), width, height);
+
+        function degToRad(degrees) {
+            return degrees * Math.PI / 180;
+        };
+
+        function rand(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + (min);
+        }
+
+        let length = 250;
+        let moveOffset = 20;
+
+        console.log(`height:${height}, width:${width}`);
+
+        const unitCount = 6;
+        const units = [];
+        const unitRadius = 30;
+        const minX = -(width / 2) + unitRadius;
+        const maxX = (width / 2) - unitRadius;
+        const minY = -(height / 2) + unitRadius;
+        const maxY = (height / 2) - unitRadius;
+        const maxMoveLength = unitRadius / 10;
+
+        console.log(`X:${minX} to ${maxX}, Y:${minY} to ${maxY}`);
+
+        for (let i = 0; i < unitCount; i++) {
+            const x = rand(minX, maxX);
+            const y = rand(minY, maxY);
+            const unit = { x: x, y: y };
+            units.push(unit);
+            console.log(unit);
+        }
+
+        let erase = (unit) => {
+            ctx.fillStyle = backgroundColor;
+            ctx.beginPath();
+            ctx.arc(unit.x, unit.y, unitRadius, degToRad(0), degToRad(360), false);
+            ctx.fill();
+        }
+
+        let move = (unit) => {
+            // let every other unit influence this unit in inverse
+            // proportion to the distance between them
+
+            // units attempt to maintain a constant distance of one radius 
+            // from all other units
+
+            // units can move at most 1/10 radius per move
+
+            // units cannot move off the screen
+
+            let vectors = units.map((u) => {
+                // we want the distance between unit centers to be 3 unitRadii
+                const requiredOffsetDistance = 3 * unitRadius;
+                let centerToCenter = { x: u.x - unit.x, y: u.y - unit.y };
+                let distance = Math.sqrt(centerToCenter.x * centerToCenter.x + centerToCenter.y * centerToCenter.y);
+                let requiredOffsetVector = { x: centerToCenter.x * requiredOffsetDistance / distance, y: centerToCenter.y * requiredOffsetDistance / distance };
+                return { x: distance > 0 ? centerToCenter.x - requiredOffsetVector.x : 0, y: distance > 0 ? centerToCenter.y - requiredOffsetVector.y : 0 };
+            });
+
+            let scaledVectors = vectors.map((v) => {
+                let scale = v.x * v.x + v.y * v.y;
+                return { x: scale != 0 ? v.x / scale : 0, y: scale != 0 ? v.y / scale : 0 };
+            });
+            let sum = scaledVectors.reduce((a, v) => ({ x: a.x + v.x, y: a.y + v.y }), { x: 0, y: 0 });
+            let dist = Math.sqrt(sum.x * sum.x + sum.y * sum.y);
+            let scaledSum = { x: sum.x / dist, y: sum.y / dist };
+
+            let moveVector = { x: scaledSum.x * maxMoveLength, y: scaledSum.y * maxMoveLength };
+            unit.x += moveVector.x;
+            unit.y += moveVector.y;
+
+            unit.x = unit.x > maxX ? maxX : unit.x;
+            unit.x = unit.x < minX ? minX : unit.x;
+            unit.y = unit.y > maxY ? maxY : unit.y;
+            unit.y = unit.y < minY ? minY : unit.y;
+
+            return unit;
+        }
+
+        let draw = (unit) => {
+            ctx.fillStyle = 'rgb(0, 0, 255)';
+            ctx.beginPath();
+            ctx.arc(unit.x, unit.y, unitRadius, degToRad(0), degToRad(360), false);
+            ctx.fill();
+        }
+
+        let moveCount = 0;
+        function loop() {
+
+            for (let i = 0; i < units.length; i++) {
+                erase(units[i]);
+                units[i] = move(units[i]);
+                draw(units[i]);
+            }
+
+            if (moveCount++ < 2000)
+                requestAnimationFrame(loop);
+        }
+
+        loop();
+    </script>
+</body>
+
+</html>
