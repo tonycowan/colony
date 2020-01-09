@@ -88,8 +88,12 @@
                 let centerToCenter = { x: u.x - unit.x, y: u.y - unit.y };
                 let distance = Math.sqrt(centerToCenter.x * centerToCenter.x + centerToCenter.y * centerToCenter.y);
                 let requiredOffsetVector = { x: centerToCenter.x * requiredOffsetDistance / distance, y: centerToCenter.y * requiredOffsetDistance / distance };
-                return { x: distance > 0 ? centerToCenter.x - requiredOffsetVector.x : 0, y: distance > 0 ? centerToCenter.y - requiredOffsetVector.y : 0 };
+                let vector = { x: distance > 0 ? Math.round((centerToCenter.x - requiredOffsetVector.x)) : 0, y: distance > 0 ? Math.round((centerToCenter.y - requiredOffsetVector.y)) : 0 };
+
+                return vector;
             });
+
+            console.log('vectors:', vectors);
 
             let scaledVectors = vectors.map((v) => {
                 let scale = v.x * v.x + v.y * v.y;
@@ -113,16 +117,18 @@
 
         let draw = (unit) => {
             ctx.fillStyle = 'rgb(0, 0, 255)';
+            ctx.strokeStyle = 'rgb(255, 255, 255)';
             ctx.beginPath();
             ctx.arc(unit.x, unit.y, unitRadius, degToRad(0), degToRad(360), false);
             ctx.fill();
+            ctx.stroke();
         }
 
         let moveCount = 0;
         function loop() {
 
             for (let i = 0; i < units.length; i++) {
-                erase(units[i]);
+                //erase(units[i]);
                 units[i] = move(units[i]);
                 draw(units[i]);
             }
