@@ -59,7 +59,7 @@
         for (let i = 0; i < unitCount; i++) {
             const x = rand(minX, maxX);
             const y = rand(minY, maxY);
-            const unit = { x: x, y: y };
+            const unit = { id: i, x: x, y: y };
             units.push(unit);
             console.log(unit);
         }
@@ -88,7 +88,7 @@
                 let centerToCenter = { x: u.x - unit.x, y: u.y - unit.y };
                 let distance = Math.sqrt(centerToCenter.x * centerToCenter.x + centerToCenter.y * centerToCenter.y);
                 let requiredOffsetVector = { x: centerToCenter.x * requiredOffsetDistance / distance, y: centerToCenter.y * requiredOffsetDistance / distance };
-                let vector = { x: distance > 0 ? Math.round((centerToCenter.x - requiredOffsetVector.x)) : 0, y: distance > 0 ? Math.round((centerToCenter.y - requiredOffsetVector.y)) : 0 };
+                let vector = { from: u.id, to: unit.id, centerToCenter, distance, requiredOffsetVector, x: distance > 0 ? Math.round((centerToCenter.x - requiredOffsetVector.x)) : 0, y: distance > 0 ? Math.round((centerToCenter.y - requiredOffsetVector.y)) : 0 };
 
                 return vector;
             });
@@ -116,12 +116,16 @@
         }
 
         let draw = (unit) => {
+            let fontHeight = 36;
+            let fontWidth = 25;
             ctx.fillStyle = 'rgb(0, 0, 255)';
             ctx.strokeStyle = 'rgb(255, 255, 255)';
             ctx.beginPath();
             ctx.arc(unit.x, unit.y, unitRadius, degToRad(0), degToRad(360), false);
             ctx.fill();
             ctx.stroke();
+            ctx.font = '36px arial';
+            ctx.strokeText(unit.id, unit.x - fontWidth / 2, unit.y + fontHeight / 2);
         }
 
         let moveCount = 0;
