@@ -18,126 +18,306 @@
     </canvas>
 
     <script>
+        const canvas = document.querySelector('.myCanvas');
+        const canvasWidth = canvas.width = window.innerWidth;
+        const canvasHeight = canvas.height = window.innerHeight;
+        const ctx = canvas.getContext('2d');
+        const backgroundColor = 'rgb(0, 0, 0)';
+        const preyFillStyle = 'rgb(0, 0, 255)';
+        const preyStrokeStyle = 'rgb(255, 255, 255)';
+        const predatorFillStyle = 'rgb(255, 0, 0)';
+        const predatorStrokeStyle = 'rgb(255, 255, 255)';
+        const beakColor = 'rgb(200,150,25)';
+
+        const preyCount = 5;
+        let preyList = [];
+
+        const predatorCount = 1;
+        const predatorList = [];
+
+        const preyRadius = 20;
+        const predatorRadius = 30;
+
         function degToRad(degrees) {
             return degrees * Math.PI / 180;
         };
-        const canvas = document.querySelector('.myCanvas');
-        const width = canvas.width = window.innerWidth;
-        const height = canvas.height = window.innerHeight;
-        const ctx = canvas.getContext('2d');
-        const backgroundColor = 'rgb(0, 0, 0)';
 
-        ctx.translate(width / 2, height / 2);
+        function rotate(point, degrees) {
+            // x2=cosβx1−sinβy1
+            // y2=sinβx1+cosβy1
 
-        ctx.fillStyle = backgroundColor;
-        ctx.fillRect(-(width / 2), -(height / 2), width, height);
+            const rad = degToRad(degrees);
 
-        function degToRad(degrees) {
-            return degrees * Math.PI / 180;
+            const x2 = Math.cos(rad) * point.x - Math.sin(rad) * point.y;
+            const y2 = Math.sin(rad) * point.x + Math.cos(rad) * point.y;
+
+            return { x: x2, y: y2 };
         };
 
         function rand(min, max) {
             return Math.floor(Math.random() * (max - min + 1)) + (min);
         }
 
-        let length = 250;
-        let moveOffset = 20;
+        // put 0,0 in the middle of the screen
+        ctx.translate(canvasWidth / 2, canvasHeight / 2);
 
-        console.log(`height:${height}, width:${width}`);
+        // erase the screen to the background color
+        ctx.fillStyle = backgroundColor;
+        ctx.fillRect(-(canvasWidth / 2), -(canvasHeight / 2), canvasWidth, canvasHeight);
 
-        const unitCount = 6;
-        const units = [];
-        const unitRadius = 30;
-        const minX = -(width / 2) + unitRadius;
-        const maxX = (width / 2) - unitRadius;
-        const minY = -(height / 2) + unitRadius;
-        const maxY = (height / 2) - unitRadius;
-        const maxMoveLength = unitRadius / 10;
+        class Drawable {
+            constructor(id, x, y, orientation, boundingRadius, fillStyle, strokeStyle) {
+                this.id = id;
+                this.boundingRadius = boundingRadius;
+                this.fillStyle = fillStyle;
+                this.strokeStyle = strokeStyle;
+                this.minX = -(canvasWidth / 2) + boundingRadius;
+                this.maxX = (canvasWidth / 2) - boundingRadius;
+                this.minY = -(canvasHeight / 2) + boundingRadius;
+                this.maxY = (canvasHeight / 2) - boundingRadius;
+                this.x = x !== undefined ? x : rand(this.minX, this.maxX);
+                this.y = y !== undefined ? y : rand(this.minY, this.maxY);
+                this.orientation = orientation !== undefined ? orientation : rand(0, 359);
+                this.boundCheck();
+            }
 
-        console.log(`X:${minX} to ${maxX}, Y:${minY} to ${maxY}`);
+            drawBoundingCircle(fillStyle, strokeStyle) {
+                let fontHeight = 36;
+                let fontWidth = 25;
+                ctx.fillStyle = fillStyle;
+                ctx.strokeStyle = strokeStyle;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.boundingRadius, degToRad(0), degToRad(360), false);
+                ctx.fill();
+                ctx.stroke();
 
-        for (let i = 0; i < unitCount; i++) {
-            const x = rand(minX, maxX);
-            const y = rand(minY, maxY);
-            const unit = { id: i, x: x, y: y };
-            units.push(unit);
-            console.log(unit);
+                // the beak has 3 points p1, p2, p3
+                const p1 = rotate({ x: -this.boundingRadius, y: 0 }, this.orientation);
+                const p2 = rotate({ x: this.boundingRadius, y: 0 }, this.orientation);
+                const p3 = rotate({ x: 0, y: this.boundingRadius }, this.orientation);
+
+                ctx.beginPath();
+                ctx.moveTo(this.x + p1.x, this.y + p1.y);
+                ctx.lineTo(this.x + p2.x, this.y + p2.y);
+                ctx.lineTo(this.x + p3.x, this.y + p3.y);
+                ctx.fillStyle = beakColor;
+                ctx.fill();
+
+                ctx.font = '36px arial';
+                ctx.strokeText(this.id, this.x - fontWidth / 2, this.y + fontHeight / 2);
+            }
+            draw() {
+                this.drawBoundingCircle(this.fillStyle, this.strokeStyle);
+            }
+            erase() {
+                this.drawBoundingCircle(backgroundColor, backgroundColor);
+            }
+            moveBy(xDiff, yDiff) {
+                this.moveTo(this.x + xDiff, this.y + yDiff);
+            }
+            moveTo(x, y) {
+                this.x = x;
+                this.y = y;
+
+                this.boundCheck();
+            }
+            boundCheck() {
+                this.x = this.x > this.maxX ? this.maxX : this.x;
+                this.x = this.x < this.minX ? this.minX : this.x;
+                this.y = this.y > this.maxY ? this.maxY : this.y;
+                this.y = this.y < this.minY ? this.minY : this.y;
+            }
         }
 
-        let erase = (unit) => {
-            ctx.fillStyle = backgroundColor;
-            ctx.beginPath();
-            ctx.arc(unit.x, unit.y, unitRadius, degToRad(0), degToRad(360), false);
-            ctx.fill();
+
+        class Prey extends Drawable {
+            // we will represent prey as a circle of radius "boundingRadius"
+
+            maxMoveLength = 2;
+            viewAngle = 270;
+
+            constructor(id, x, y, orientation) {
+                super(id, x, y, orientation, preyRadius, preyFillStyle, preyStrokeStyle);
+            }
+
+            draw() {
+                super.draw();
+                const orientation = degToRad(this.orientation);
+                const viewAngle = degToRad(this.viewAngle);
+                //const angleToOther = Math.atan((u.y - this.y) / (u.x - this.x));
+                //const inView = Math.abs(orientation - angleToOther) <= Math.abs(orientation - viewAngle / 2)
+
+                ctx.beginPath();
+                ctx.moveTo(this.x - 100 * Math.sin(orientation), this.y + 100 * Math.cos(orientation));
+                ctx.lineTo(this.x, this.y);
+                ctx.stroke();
+
+                console.log(`id: ${this.id}, orientation: ${this.orientation}, viewAngle: ${viewAngle}, x: ${this.x}, y: ${this.y}, pointer.x: ${this.x + 100 * Math.sin(orientation)}, pointer.y: ${this.y + 100 * Math.cos(orientation)}`);
+            }
+
+            move() {
+                // let every other prey influence this prey in inverse
+                // proportion to the distance between them
+
+                // prey attempt to maintain a constant distance of one radius 
+                // from all other prey
+
+                // prey can move at most 1/10 radius per move
+
+                // prey cannot move off the screen
+
+                // first the attraction to the visible flock
+                let vectors = preyList.reduce((a, u) => {
+                    // we want the distance between unit centers to be 3 boundingRadius
+                    const requiredOffsetDistance = 3 * this.boundingRadius;
+                    // determine if the other flock member is in view (within 1/2 view angle of orientation)
+                    const orientation = degToRad(this.orientation);
+                    const viewAngle = degToRad(this.viewAngle);
+                    const angleToOther = Math.atan((u.x - this.x) / (u.y - this.y));
+                    const inView = Math.abs(angleToOther) <= Math.abs(viewAngle / 2);
+                    console.log(`id: ${this.id}@(${this.x},${this.y}), other: ${u.id}@(${u.x},${u.y}), orientation: ${orientation}, angleToOther: ${angleToOther}, inView: ${inView}`, a);
+
+                    ctx.beginPath();
+                    ctx.moveTo(this.x + 1000 * Math.sin(angleToOther) * Math.sign(u.y - this.y), this.y + 1000 * Math.cos(angleToOther) * Math.sign(u.y - this.y));
+                    ctx.lineTo(this.x, this.y);
+                    ctx.strokeStyle = 'rgba(255,0,0,0.8';
+                    ctx.stroke();
+
+                    let fontHeight = 36;
+                    let fontWidth = 25;
+
+                    ctx.font = '36px arial';
+                    ctx.strokeText(u.id, this.x + 100 * Math.sin(angleToOther)*Math.sign(u.y - this.y) - fontWidth / 2, this.y + 100 * Math.cos(angleToOther)*Math.sign(u.y - this.y) + fontHeight / 2);
+
+
+
+                    if (inView) {
+                        let centerToCenter = { x: u.x - this.x, y: u.y - this.y };
+                        let distance = Math.sqrt(centerToCenter.x * centerToCenter.x + centerToCenter.y * centerToCenter.y);
+                        let requiredOffsetVector = { x: centerToCenter.x * requiredOffsetDistance / distance, y: centerToCenter.y * requiredOffsetDistance / distance };
+                        let vector = { from: u.id, to: this.id, centerToCenter, distance, requiredOffsetVector, x: distance > 0 ? Math.round((centerToCenter.x - requiredOffsetVector.x)) : 0, y: distance > 0 ? Math.round((centerToCenter.y - requiredOffsetVector.y)) : 0 };
+                        vector.tooClose = distance < requiredOffsetDistance;
+
+                        a.push(vector);
+                    }
+
+                    return a;
+                }, []);
+
+                // now aversion to predatorList
+                predatorList.forEach((u) => {
+                    // we want the distance between unit centers to be 3 boundingRadii
+                    const panicDistance = 4 * this.boundingRadius;
+                    let centerToCenter = { x: this.x - u.x, y: this.y - u.y };
+                    let distance = Math.sqrt(centerToCenter.x * centerToCenter.x + centerToCenter.y * centerToCenter.y);
+                    let vector = { from: u.id, to: this.id, centerToCenter, distance, x: distance > 0 ? Math.round(centerToCenter.x) : 0, y: distance > 0 ? Math.round(centerToCenter.y) : 0 };
+                    vector.tooClose = distance < panicDistance;
+
+                    vectors.push(vector);
+                });
+
+                let scaledVectors = vectors.map((v) => {
+                    // effectively multiply forces by a constant by dividing scale factor by the same amount - this separates the signal from the noise.
+                    let scale = (v.x * v.x + v.y * v.y) / 30;
+                    return { from: v.from, to: v.to, vx: v.x, vy: v.y, scale, x: scale != 0 ? v.x / (v.tooClose ? 1 : scale) : 0, y: scale != 0 ? v.y / (v.tooClose ? 1 : scale) : 0 };
+                });
+                //console.log('scaledVectors:', scaledVectors);
+
+                let sum = scaledVectors.reduce((a, v) => ({ x: a.x + v.x, y: a.y + v.y }), { x: 0, y: 0 });
+                let dist = Math.sqrt(sum.x * sum.x + sum.y * sum.y);
+                let moveVector = sum;
+
+                if (dist > this.maxMoveLength) {
+                    // scale it back
+                    let scaledSum = { x: sum.x / dist, y: sum.y / dist };
+                    moveVector = { x: scaledSum.x * this.maxMoveLength, y: scaledSum.y * this.maxMoveLength };
+                }
+
+                this.moveBy(moveVector.x, moveVector.y);
+            }
         }
 
-        let move = (unit) => {
-            // let every other unit influence this unit in inverse
-            // proportion to the distance between them
+        class Predator extends Drawable {
+            // we will represent prey as a circle of radius "boundingRadius"
 
-            // units attempt to maintain a constant distance of one radius 
-            // from all other units
+            maxMoveLength = 3;
+            viewAngle = 180;
 
-            // units can move at most 1/10 radius per move
+            constructor(id, x, y, orientation) {
+                super(id, x, y, orientation, predatorRadius, predatorFillStyle, predatorStrokeStyle);
+            }
 
-            // units cannot move off the screen
+            move() {
+                // predators are attracted to all prey just as prey are attracted to each other in inverse proportion to the distance
+                // predators cannot move off screen
 
-            let vectors = units.map((u) => {
-                // we want the distance between unit centers to be 3 unitRadii
-                const requiredOffsetDistance = 3 * unitRadius;
-                let centerToCenter = { x: u.x - unit.x, y: u.y - unit.y };
-                let distance = Math.sqrt(centerToCenter.x * centerToCenter.x + centerToCenter.y * centerToCenter.y);
-                let requiredOffsetVector = { x: centerToCenter.x * requiredOffsetDistance / distance, y: centerToCenter.y * requiredOffsetDistance / distance };
-                let vector = { from: u.id, to: unit.id, centerToCenter, distance, requiredOffsetVector, x: distance > 0 ? Math.round((centerToCenter.x - requiredOffsetVector.x)) : 0, y: distance > 0 ? Math.round((centerToCenter.y - requiredOffsetVector.y)) : 0 };
+                let vectors = preyList.map((u) => {
+                    let centerToCenter = { x: u.x - this.x, y: u.y - this.y };
+                    let distance = Math.sqrt(centerToCenter.x * centerToCenter.x + centerToCenter.y * centerToCenter.y);
+                    let vector = { from: u.id, to: this.id, centerToCenter, distance, x: distance > 0 ? Math.round((centerToCenter.x)) : 0, y: distance > 0 ? Math.round((centerToCenter.y)) : 0 };
 
-                return vector;
-            });
+                    return vector;
+                });
 
-            console.log('vectors:', vectors);
+                // did we catch any?
+                vectors.forEach((v) => {
+                    // we don't handle the case where prey is hiding in a corner of the screen
+                    if (Math.floor(v.distance) <= predatorRadius - preyRadius) {
+                        console.log(`********** got 'im ************ ${v.from} (${preyList.length} left out of ${preyCount}`);
+                        preyList = preyList.filter((u) => u.id != v.from);
+                    }
+                });
 
-            let scaledVectors = vectors.map((v) => {
-                let scale = v.x * v.x + v.y * v.y;
-                return { x: scale != 0 ? v.x / scale : 0, y: scale != 0 ? v.y / scale : 0 };
-            });
-            let sum = scaledVectors.reduce((a, v) => ({ x: a.x + v.x, y: a.y + v.y }), { x: 0, y: 0 });
-            let dist = Math.sqrt(sum.x * sum.x + sum.y * sum.y);
-            let scaledSum = { x: sum.x / dist, y: sum.y / dist };
+                let scaledVectors = vectors.map((v) => {
+                    // effectively multiply forces by 10 by dividing scale factor by 10
+                    let distance = Math.sqrt(v.x * v.x + v.y * v.y)
+                    let scale = distance * distance * distance / 10000;
+                    return { from: v.from, to: v.to, vx: v.x, vy: v.y, scale, x: scale != 0 ? v.x / scale : 0, y: scale != 0 ? v.y / scale : 0 };
+                });
+                //console.log('scaledVectors:', scaledVectors);
 
-            let moveVector = { x: scaledSum.x * maxMoveLength, y: scaledSum.y * maxMoveLength };
-            unit.x += moveVector.x;
-            unit.y += moveVector.y;
+                let sum = scaledVectors.reduce((a, v) => ({ x: a.x + v.x, y: a.y + v.y }), { x: 0, y: 0 });
+                let dist = Math.sqrt(sum.x * sum.x + sum.y * sum.y);
+                let moveVector = sum;
 
-            unit.x = unit.x > maxX ? maxX : unit.x;
-            unit.x = unit.x < minX ? minX : unit.x;
-            unit.y = unit.y > maxY ? maxY : unit.y;
-            unit.y = unit.y < minY ? minY : unit.y;
+                if (dist > this.maxMoveLength) {
+                    // scale it back
+                    let scaledSum = { x: sum.x / dist, y: sum.y / dist };
+                    moveVector = { x: scaledSum.x * this.maxMoveLength, y: scaledSum.y * this.maxMoveLength };
+                }
 
-            return unit;
+                this.moveBy(moveVector.x, moveVector.y);
+            }
         }
 
-        let draw = (unit) => {
-            let fontHeight = 36;
-            let fontWidth = 25;
-            ctx.fillStyle = 'rgb(0, 0, 255)';
-            ctx.strokeStyle = 'rgb(255, 255, 255)';
-            ctx.beginPath();
-            ctx.arc(unit.x, unit.y, unitRadius, degToRad(0), degToRad(360), false);
-            ctx.fill();
-            ctx.stroke();
-            ctx.font = '36px arial';
-            ctx.strokeText(unit.id, unit.x - fontWidth / 2, unit.y + fontHeight / 2);
+        for (let i = 0; i < preyCount; i++) {
+            const prey = new Prey(i);
+            preyList.push(prey);
+            console.log(prey);
+        }
+
+        for (let i = 0; i < predatorCount; i++) {
+            const predator = new Predator(i);
+            predatorList.push(predator);
+            console.log(predator);
         }
 
         let moveCount = 0;
         function loop() {
 
-            for (let i = 0; i < units.length; i++) {
-                //erase(units[i]);
-                units[i] = move(units[i]);
-                draw(units[i]);
-            }
+            preyList.forEach((prey) => {
+                prey.erase();
+                prey.move();
+                prey.draw();
+            });
 
-            if (moveCount++ < 2000)
+            predatorList.forEach((predator) => {
+                predator.erase();
+                predator.move();
+                predator.draw();
+            });
+
+            if (moveCount++ < 0)
                 requestAnimationFrame(loop);
         }
 
